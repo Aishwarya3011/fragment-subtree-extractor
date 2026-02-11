@@ -108,11 +108,11 @@ def write_swc_for_root(
                 f"{new_id[old]} {swc_type} {x:.4f} {y:.4f} {z:.4f} {r:.4f} {swc_parent}\n"
             )
 
-def read_somas_csv(path: str) -> List[Tuple[float, float, float]]:
+def read_anchors_csv(path: str) -> List[Tuple[float, float, float]]:
     with open(path, newline="") as f:
         reader = csv.DictReader(f)
         if reader.fieldnames is None:
-            raise ValueError("somas.csv has no header row.")
+            raise ValueError("anchors.csv has no header row.")
 
         fields = list(reader.fieldnames)
         lower = [c.strip().lower() for c in fields]
@@ -134,19 +134,19 @@ def read_somas_csv(path: str) -> List[Tuple[float, float, float]]:
         ycol = find_col("y")
         zcol = find_col("z")
 
-        somas: List[Tuple[float, float, float]] = []
+        anchors: List[Tuple[float, float, float]] = []
         for row in reader:
             x = float(row[xcol])
             y = float(row[ycol])
             z = float(row[zcol])
-            somas.append((x, y, z))
+            anchors.append((x, y, z))
 
-    return somas
+    return anchors
 
 def in_cube(px: float, py: float, pz: float, cx: float, cy: float, cz: float, half: float) -> bool:
     return (abs(px - cx) <= half) and (abs(py - cy) <= half) and (abs(pz - cz) <= half)
 
-def soma_swc_filename(sx: float, sy: float, sz: float) -> str:
+def anchor_swc_filename(sx: float, sy: float, sz: float) -> str:
     sx_i = int(round(sx))
     sy_i = int(round(sy))
     sz_i = int(round(sz))
@@ -155,25 +155,25 @@ def soma_swc_filename(sx: float, sy: float, sz: float) -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--giant_swc", required=True, help="Path to raw reconstructions (giant SWC)")
-    ap.add_argument("--somas_csv", required=True, help="CSV with soma coordinates (manually annotated)")
+    ap.add_argument("--anchors_csv", required=True, help="CSV with anchor coordinates (manually annotated)")
     ap.add_argument("--out_dir", required=True, help="Output directory")
     ap.add_argument("--min_nodes", type=int, default=10, help="Skip roots with fewer than this many nodes")
-    ap.add_argument("--cube_half", type=float, required=True, help="Half-width of the cube around each soma")
+    ap.add_argument("--cube_half", type=float, required=True, help="Half-width of the cube around each anchor")
 
     args = ap.parse_args()
     os.makedirs(args.out_dir, exist_ok=True)
 
-    somas = read_somas_csv(args.somas_csv)
-    if not somas:
-        raise ValueError("No somas found")
-    print(f"Loading {len(somas)} somas")
+    anchors = read_anchors_csv(args.anchors_csv)
+    if not anchors:
+        raise ValueError("No anchors found")
+    print(f"Loading {len(anchors)} anchors")
 
-    soma_dirs: List[str] = []
-    for i, (sx, sy, sz) in enumerate(somas):
-        name = soma_swc_filename(sx, sy, sz)
+    anchor_dirs: List[str] = []
+    for i, (sx, sy, sz) in enumerate(anchors):
+        name = anchor_swc_filename(sx, sy, sz)
         d = os.path.join(args.out_dir, name)
         os.makedirs(d, exist_ok=True)
-        soma_dirs.append(d)
+        anchor_dirs.append(d)
 
     nodes, children, roots = parse_giant_swc(args.giant_swc)
 
@@ -186,9 +186,9 @@ def main():
             continue
 
         rx, ry, rz, *_ = nodes[root]
-        candidate_somas: List[int] = []
+        candidate_anchors: List[int] = []
 
-        for si, (sx, sy, sz) in enumerate(somas):
+        for si, (sx, sy, sz) in enumerate(anchors):
             hit = False
             for nid in subtree:
                 x, y, z, *_ = nodes[nid]
@@ -196,14 +196,14 @@ def main():
                     hit = True
                     break
             if hit:
-                candidate_somas.append(si)
+                candidate_anchors.append(si)
 
-        if not candidate_somas:
+        if not candidate_anchors:
             continue
 
-        for si in candidate_somas:
+        for si in candidate_anchors:
             out_path = os.path.join(
-            soma_dirs[si],
+            anchor_dirs[si],
             f"root_{root:08d}.swc",
         )
             write_swc_for_root(out_path, nodes, children, root)
